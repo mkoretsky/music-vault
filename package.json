@@ -1,14 +1,14 @@
 {
-	"name": "spotify-links",
+	"name": "music-vault",
 	"version": "0.3.2",
-	"description": "Insert a link to the song currently playing on your Spotify",
+	"description": "personal tool",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
-	"author": "Dillon Cutaiar",
+	"author": "Me",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^16.11.6",

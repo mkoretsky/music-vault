@@ -2,9 +2,9 @@ import { createHash } from "crypto";
 import { RequestUrlParam, requestUrl } from "obsidian";
 
 export const authEndpoint = "https://accounts.spotify.com/authorize";
-export const clientId = "f73730e86de14041b47fc683e619fd8b";
+export const clientId = "6fac5b281afe437b94080bc41b71c5a7";
 export const scopes = ["user-read-currently-playing"];
-export const redirectUri = "obsidian://song-links-callback";
+export const redirectUri = "obsidian://music-vault-callback";
 
 export interface TokenResponse {
   access_token: string;

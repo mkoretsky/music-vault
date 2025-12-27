@@ -1,13 +1,10 @@
 {
-	"id": "spotify-links",
+	"id": "music-vault",
 	"version": "0.3.2",
-	"name": "Song Links",
-	"description": "Insert a link to the song currently playing on your Spotify",
-	"author": "Dillon Cutaiar",
-	"authorUrl": "https://cutaiar.io",
+	"name": "Music Vault",
+	"description": "personal tool",
+	"author": "Me",
+	"authorUrl": "",
 	"minAppVersion": "1.4.16",
-	"isDesktopOnly": true,
-	"fundingUrl": {
-		"Buy Me a Coffee": "https://www.buymeacoffee.com/cutaiar"
-	}
+	"isDesktopOnly": true
 }
