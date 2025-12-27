@@ -143,7 +143,7 @@ export default class ObsidianSpotifyPlugin extends Plugin {
 
   /** Build a MD link to the song including attribution */
   buildSongLink = (song: Song) => {
-    return `[${song.name} on Spotify](${song.link})`;
+    return `[${song.name}](${song.link})`;
   };
 
   /** Open Spotify Links settings page */
@@ -171,6 +171,93 @@ export default class ObsidianSpotifyPlugin extends Plugin {
     }
   };
 
+  // Helper to sanitize filenames
+  sanitizeFileName = (name: string) => {
+    return name.replace(/[\\/:*?"<>|]/g, "").slice(0, 200).trim();
+  };
+
+  // Create or open a song note for the current playing song
+  createSongNote = async () => {
+    const token = await getToken();
+
+    if (token === undefined) {
+      new Notice("🎵 Connect Spotify in settings first");
+      this.openSettingsPage();
+      return;
+    }
+
+    const song = await fetchCurrentSong(token.access_token);
+
+    if (song === undefined) {
+      new Notice("❌ No song playing");
+      return;
+    }
+
+    // Search for an existing note containing the song URL
+    const files = this.app.vault.getFiles();
+    for (const file of files) {
+      if ((file.extension ?? "") !== "md") continue;
+      try {
+        const content = await this.app.vault.read(file);
+        if (content.includes(song.link)) {
+
+          const leaf = this.app.workspace.getLeaf(false);
+          await leaf.openFile(file);
+          new Notice("✅ Opened existing song note");
+          return;
+        }
+      } catch (e) {
+        // ignore read errors for individual files
+        console.error(e);
+      }
+    }
+
+    // Build frontmatter and body
+    const artistName = song.artists?.[0]?.name ?? "";
+    const artistLink = song.artists?.[0]?.link ?? "";
+    const albumName = song.album?.name ?? "";
+    const releaseDate = song.album?.release_date ?? "";
+
+    const frontmatter = [
+      "---",
+      `Song Name: ${song.name}`,
+      `Song link: ${song.link}`,
+      `Artist Name: ${artistName}`,
+      `Artist Link: ${artistLink}`,
+      `Album name: ${albumName}`,
+      `Release date: ${releaseDate}`,
+      "---",
+    ].join("\n");
+
+    const body = [
+      `# ${song.name}`,
+      "",
+      `[Listen on Spotify](${song.link})`,
+      "",
+      `**Artist:** ${artistLink ? `[${artistName}](${artistLink})` : artistName}`,
+      `**Album:** ${albumName}${releaseDate ? ` (${releaseDate})` : ""}`,
+    ].join("\n\n");
+
+    const baseName = this.sanitizeFileName(song.name || "Untitled Song");
+    let fileName = `${baseName}.md`;
+    // Ensure unique filename
+    let ix = 1;
+    while (this.app.vault.getAbstractFileByPath(fileName)) {
+      ix += 1;
+      fileName = `${baseName} - ${ix}.md`;
+    }
+
+    try {
+      const file = await this.app.vault.create(fileName, `${frontmatter}\n\n${body}`);
+      const leaf = this.app.workspace.getLeaf(false);
+      await leaf.openFile(file);
+      new Notice("✅ Created song note");
+    } catch (e) {
+      console.error("Error creating song note:", e);
+      new Notice("❌ Failed to create song note");
+    }
+  };
+
   /**
    * onload for the plugin. Simply load settings, add the plugins command, and register a SettingTab
    */
@@ -182,6 +269,13 @@ export default class ObsidianSpotifyPlugin extends Plugin {
       id: "insert-song-link",
       name: "Insert song link",
       editorCallback: this.insertSongLink,
+    });
+
+    // New command to create/open song note (users can assign hotkey via Obsidian)
+    this.addCommand({
+      id: "create-song-note",
+      name: "Create/open song note",
+      callback: this.createSongNote,
     });
 
     // This adds a settings tab so the user can configure various aspects of the plugin

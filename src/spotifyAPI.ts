@@ -113,8 +113,21 @@ export const refreshToken = async (
   return undefined;
 };
 
-/** Return type for a song fetched from spotify */
-export type Song = { link: string; name: string };
+/** Return type for a song fetched from Spotify */
+export type Song = {
+  name: string;
+  link: string;
+
+  artists?: {
+    name: string;
+    link?: string;
+  }[];
+
+  album?: {
+    name: string;
+    release_date?: string;
+  };
+};
 
 /**
  * Fetch the current playing song from spotify. Undefined if nothing playing or an error occurred.
