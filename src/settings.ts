@@ -1,13 +1,17 @@
-import { PluginSettingTab, App, ButtonComponent, Notice } from "obsidian";
+import { PluginSettingTab, App, ButtonComponent, Notice, Setting } from "obsidian";
 import ObsidianSpotifyPlugin from "main";
 import { getToken, clearToken } from "tokenStorage";
 import { SpotifyProfile, fetchProfile } from "spotifyAPI";
 import SpotifyUserSVG from "./spotify-user.svg";
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface ObsidianSpotifyPluginSettings {}
+export interface ObsidianSpotifyPluginSettings {
+  songsFolder: string; // e.g. "Music/Songs"
+}
 
-export const DEFAULT_SETTINGS: ObsidianSpotifyPluginSettings = {};
+export const DEFAULT_SETTINGS: ObsidianSpotifyPluginSettings = {
+  songsFolder: "", // pick your default
+};
 
 export class SettingTab extends PluginSettingTab {
   plugin: ObsidianSpotifyPlugin;
@@ -92,5 +96,21 @@ export class SettingTab extends PluginSettingTab {
           this.display();
         });
     }
+
+    // Song notes folder setting
+    new Setting(stack)
+      .setName("Song notes folder")
+      .setDesc('Folder path to create song notes in (e.g. "Music/Songs"). Leave blank for vault root.')
+      .addText((text) =>
+        text
+          .setPlaceholder("Music/Songs")
+          .setValue(this.plugin.settings.songsFolder ?? "")
+          .onChange(async (value) => {
+            // trim leading/trailing slashes
+            this.plugin.settings.songsFolder = value.replace(/^\/+|\/+$/g, "");
+            await this.plugin.saveSettings();
+          })
+      );
+      
   }
 }

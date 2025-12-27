@@ -172,6 +172,22 @@ export default class ObsidianSpotifyPlugin extends Plugin {
     }
   };
 
+  // Ensure folder exists (creates nested folders)
+  ensureFolderExists = async (folderPath: string) => {
+    const folder = (folderPath ?? "").replace(/^\/+|\/+$/g, "").trim();
+    if (!folder) return;
+
+    // create nested folders step-by-step
+    const parts = folder.split("/").filter(Boolean);
+    let cur = "";
+    for (const p of parts) {
+      cur = cur ? `${cur}/${p}` : p;
+      if (!this.app.vault.getAbstractFileByPath(cur)) {
+        await this.app.vault.createFolder(cur);
+      }
+    }
+  };
+
   // Helper to sanitize filenames
   sanitizeFileName = (name: string) => {
     return name.replace(/[\\/:*?"<>|]/g, "").slice(0, 200).trim();
@@ -193,6 +209,11 @@ export default class ObsidianSpotifyPlugin extends Plugin {
       new Notice("❌ No song playing");
       return;
     }
+
+    const folder = (this.settings.songsFolder ?? "").replace(/^\/+|\/+$/g, "").trim();
+    await this.ensureFolderExists(folder);
+
+
     /*console.log("[SongLinks] song:", song);
     if (!song.id) { new Notice("❌ song.id missing (check fetchCurrentSong mapping)"); return; }
     let af;
@@ -206,7 +227,9 @@ export default class ObsidianSpotifyPlugin extends Plugin {
     }*/
 
     // Search for an existing note containing the song URL
-    const files = this.app.vault.getFiles();
+    const files = folder
+      ? this.app.vault.getFiles().filter((f) => f.path.startsWith(`${folder}/`))
+      : this.app.vault.getFiles();
     for (const file of files) {
       if ((file.extension ?? "") !== "md") continue;
       try {
@@ -255,16 +278,17 @@ export default class ObsidianSpotifyPlugin extends Plugin {
     ].join("\n\n");
 
     const baseName = this.sanitizeFileName(song.name || "Untitled Song");
-    let fileName = `${baseName}.md`;
-    // Ensure unique filename
+    const prefix = folder ? `${folder}/` : "";
+    let filePath = `${prefix}${baseName}.md`;
+
     let ix = 1;
-    while (this.app.vault.getAbstractFileByPath(fileName)) {
+    while (this.app.vault.getAbstractFileByPath(filePath)) {
       ix += 1;
-      fileName = `${baseName} - ${ix}.md`;
+      filePath = `${prefix}${baseName} - ${ix}.md`;
     }
 
     try {
-      const file = await this.app.vault.create(fileName, `${frontmatter}\n\n${body}`);
+      const file = await this.app.vault.create(filePath, `${frontmatter}\n\n${body}`);
       const leaf = this.app.workspace.getLeaf(false);
       await leaf.openFile(file);
       new Notice("✅ Created song note");
