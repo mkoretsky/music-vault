@@ -25,6 +25,9 @@
 .stack {
     display: flex;
     flex-direction: column;
+    gap: 12px;
+    height: auto;
+    justify-content: flex-start;
 }
 
 .profile {

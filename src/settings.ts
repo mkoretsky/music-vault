@@ -74,7 +74,7 @@ export class SettingTab extends PluginSettingTab {
     }
 
     // Container for buttons below
-    const buttons = containerEl.createDiv({ cls: "buttons" });
+    const buttons = stack.createDiv({ cls: "buttons" });
 
     // Offer a way to connect
     if (this.profile === undefined) {
