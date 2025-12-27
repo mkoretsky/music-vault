@@ -23,6 +23,7 @@ import {
   ObsidianSpotifyPluginSettings,
   SettingTab,
 } from "settings";
+//import { fetchAudioFeatures } from "spotifyAPI";
 
 export default class ObsidianSpotifyPlugin extends Plugin {
   settings: ObsidianSpotifyPluginSettings;
@@ -192,6 +193,17 @@ export default class ObsidianSpotifyPlugin extends Plugin {
       new Notice("❌ No song playing");
       return;
     }
+    /*console.log("[SongLinks] song:", song);
+    if (!song.id) { new Notice("❌ song.id missing (check fetchCurrentSong mapping)"); return; }
+    let af;
+    try {
+      af = await fetchAudioFeatures(token.access_token, song.id);
+      console.log("[SongLinks] af:", af);
+    } catch (e) {
+      console.error("[SongLinks] fetchAudioFeatures crashed:", e);
+      new Notice("❌ audio-features fetch failed (check console)");
+      af = undefined;
+    }*/
 
     // Search for an existing note containing the song URL
     const files = this.app.vault.getFiles();
@@ -226,16 +238,20 @@ export default class ObsidianSpotifyPlugin extends Plugin {
       `Artist Link: ${artistLink}`,
       `Album name: ${albumName}`,
       `Release date: ${releaseDate}`,
+      /*`Danceability: ${af?.danceability ?? ""}`,
+      `Energy: ${af?.energy ?? ""}`,
+      `Loudness dB: ${af?.loudness ?? ""}`,
+      `Speechiness: ${af?.speechiness ?? ""}`,
+      `Acousticness: ${af?.acousticness ?? ""}`,
+      `Instrumentalness: ${af?.instrumentalness ?? ""}`,
+      `Liveness: ${af?.liveness ?? ""}`,
+      `Valence: ${af?.valence ?? ""}`,
+      `Tempo BPM: ${af?.tempo ?? ""}`,*/
       "---",
     ].join("\n");
 
     const body = [
-      `# ${song.name}`,
-      "",
-      `[Listen on Spotify](${song.link})`,
-      "",
-      `**Artist:** ${artistLink ? `[${artistName}](${artistLink})` : artistName}`,
-      `**Album:** ${albumName}${releaseDate ? ` (${releaseDate})` : ""}`,
+      ``,
     ].join("\n\n");
 
     const baseName = this.sanitizeFileName(song.name || "Untitled Song");

@@ -115,6 +115,7 @@ export const refreshToken = async (
 
 /** Return type for a song fetched from Spotify */
 export type Song = {
+  //id: string;
   name: string;
   link: string;
 
@@ -128,6 +129,33 @@ export type Song = {
     release_date?: string;
   };
 };
+
+/*export type AudioFeatures = {
+  danceability: number;
+  energy: number;
+  loudness: number; // dB
+  speechiness: number;
+  acousticness: number;
+  instrumentalness: number;
+  liveness: number;
+  valence: number;
+  tempo: number; // BPM
+};
+
+export const fetchAudioFeatures = async (
+  token: string,
+  trackId: string
+): Promise<AudioFeatures | undefined> => {
+  const res = await requestUrl({
+    url: `https://api.spotify.com/v1/audio-features/${trackId}`,
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!ok(res.status)) return undefined;
+
+  const af = res.json as AudioFeatures;
+  return af;
+};*/
 
 /**
  * Fetch the current playing song from spotify. Undefined if nothing playing or an error occurred.
@@ -153,6 +181,7 @@ export const fetchCurrentSong = async (
       if (!item || item.type !== "track") return undefined;
 
       return {
+        //id: item.id,
         name: item.name ?? "",
         link: item.external_urls?.spotify ?? item.uri ?? "",
         artists: (item.artists ?? []).map((a: any) => ({
