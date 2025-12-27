@@ -147,9 +147,26 @@ export const fetchCurrentSong = async (
   if (ok(res.status)) {
     try {
       const obj = res.json;
-      if (obj.is_playing) {
-        return { link: obj.item?.external_urls.spotify, name: obj.item?.name };
-      }
+      if (!obj?.is_playing) return undefined;
+
+      const item = obj.item;
+      if (!item || item.type !== "track") return undefined;
+
+      return {
+        name: item.name ?? "",
+        link: item.external_urls?.spotify ?? item.uri ?? "",
+        artists: (item.artists ?? []).map((a: any) => ({
+          name: a.name,
+          link: a.external_urls?.spotify,
+        })),
+        album: item.album
+          ? {
+              name: item.album.name,
+              release_date: item.album.release_date,
+            }
+          : undefined,
+      };
+
     } catch (e: unknown) {
       console.error("Failed to parse response json in fetchCurrentSong: ", e);
       return undefined;
