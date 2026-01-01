@@ -255,12 +255,12 @@ export default class ObsidianSpotifyPlugin extends Plugin {
 
     const frontmatter = [
       "---",
-      `Song Name: ${song.name}`,
-      `Song link: ${song.link}`,
-      `Artist Name: ${artistName}`,
-      `Artist Link: ${artistLink}`,
-      `Album name: ${albumName}`,
-      `Release date: ${releaseDate}`,
+      `Song Name: "${song.name}"`,
+      `Song link: "${song.link}"`,
+      `Artist Name: "${artistName}"`,
+      `Artist Link: "${artistLink}"`,
+      `Album name: "${albumName}"`,
+      `Release date: "${releaseDate}"`,
       /*`Danceability: ${af?.danceability ?? ""}`,
       `Energy: ${af?.energy ?? ""}`,
       `Loudness dB: ${af?.loudness ?? ""}`,
