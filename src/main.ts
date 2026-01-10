@@ -155,6 +155,14 @@ export default class ObsidianSpotifyPlugin extends Plugin {
     this.app.setting?.openTabById?.(this.manifest.id);
   };
 
+  private foldPropertiesInActiveLeaf = async () => {
+  // wait a tick so the view finishes mounting after openFile
+  await new Promise((r) => setTimeout(r, 0));
+
+  // TOGGLE unfold properties pane
+  this.app.commands.executeCommandById("editor:toggle-fold-properties");
+};
+
   // Temporary notification of public availability
   notifyPublicAvailability = () => {
     const shouldNotify = !hasNotifiedPublicAvailability();
@@ -238,6 +246,7 @@ export default class ObsidianSpotifyPlugin extends Plugin {
 
           const leaf = this.app.workspace.getLeaf(false);
           await leaf.openFile(file);
+          await this.foldPropertiesInActiveLeaf();
           new Notice("✅ Opened existing song note");
           return;
         }
@@ -291,6 +300,7 @@ export default class ObsidianSpotifyPlugin extends Plugin {
       const file = await this.app.vault.create(filePath, `${frontmatter}\n\n${body}`);
       const leaf = this.app.workspace.getLeaf(false);
       await leaf.openFile(file);
+      await this.foldPropertiesInActiveLeaf();
       new Notice("✅ Created song note");
     } catch (e) {
       console.error("Error creating song note:", e);
