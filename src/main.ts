@@ -212,6 +212,44 @@ private foldPropertiesInActiveLeaf = async () => {
     return name.replace(/[\\/:*?"<>|]/g, "").slice(0, 200).trim();
   };
 
+  private buildSongFrontmatter = (song: Song) => {
+  const artistsAll = (song.artists ?? []).map(a => a.name).filter(Boolean) as string[];
+  const artistLinksAll = (song.artists ?? [])
+    .map(a => a.link)
+    .filter((x): x is string => !!x);
+  const artistIdsAll = (song.artists ?? []).map(a => a.id).filter(Boolean) as string[];
+
+  const albumName = song.album?.name ?? "";
+  const releaseDate = song.album?.release_date ?? "";
+
+  return [
+    "---",
+    `Song Name: "${song.name}"`,
+    `Song link: "${song.link}"`,
+    `track_id: "${song.id}"`,
+    `isrc: "${song.isrc ?? ""}"`,
+    `duration_ms: ${song.duration_ms ?? '""'}`,
+    `explicit: ${song.explicit ?? '""'}`,
+    `popularity: ${song.popularity ?? '""'}`,
+    `artists_all: [${artistsAll.map(n => JSON.stringify(n)).join(", ")}]`,
+    `artist_ids_all: [${artistIdsAll.map(id => JSON.stringify(id)).join(", ")}]`,
+    `artist_links_all: [${artistLinksAll.map(u => JSON.stringify(u)).join(", ")}]`,
+    `Album name: "${albumName}"`,
+    `Release date: "${releaseDate}"`,
+    "---",
+  ].join("\n");
+};
+
+private upsertFrontmatter = (content: string, newFrontmatter: string) => {
+  const fmRegex = /^\s*---\s*\n[\s\S]*?\n---\s*\n?/; // frontmatter at top
+  if (fmRegex.test(content)) {
+    const rest = content.replace(fmRegex, "").replace(/^\n+/, "");
+    return `${newFrontmatter}\n\n${rest}`;
+  }
+  return `${newFrontmatter}\n\n${content.replace(/^\n+/, "")}`;
+};
+
+
   // Create or open a song note for the current playing song
   createSongNote = async () => {
     const token = await getToken();
@@ -254,11 +292,14 @@ private foldPropertiesInActiveLeaf = async () => {
       try {
         const content = await this.app.vault.read(file);
         if (content.includes(`track_id: "${song.id}"`)) {
+          const newFm = this.buildSongFrontmatter(song);
+          const updated = this.upsertFrontmatter(content, newFm);
+          if (updated !== content) await this.app.vault.modify(file, updated);
 
           const leaf = this.app.workspace.getLeaf(false);
           await leaf.openFile(file);
           await this.foldPropertiesInActiveLeaf();
-          new Notice("✅ Opened existing song note");
+          new Notice("✅ Opened existing song note (updated)");
           return;
         }
       } catch (e) {
