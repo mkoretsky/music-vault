@@ -241,12 +241,11 @@ private foldPropertiesInActiveLeaf = async () => {
 };
 
 private upsertFrontmatter = (content: string, newFrontmatter: string) => {
-  const fmRegex = /^\s*---\s*\n[\s\S]*?\n---\s*\n?/; // frontmatter at top
-  if (fmRegex.test(content)) {
-    const rest = content.replace(fmRegex, "").replace(/^\n+/, "");
-    return `${newFrontmatter}\n\n${rest}`;
-  }
-  return `${newFrontmatter}\n\n${content.replace(/^\n+/, "")}`;
+  // only replace the frontmatter block; keep everything else identical
+  const m = content.match(/^(\s*---\s*\r?\n[\s\S]*?\r?\n---)(\r?\n?)([\s\S]*)$/);
+  if (!m) return content; // dont touch if no frontmatter
+  const [, , sep, rest] = m;
+  return `${newFrontmatter}${sep}${rest}`;
 };
 
 
