@@ -155,12 +155,23 @@ export default class ObsidianSpotifyPlugin extends Plugin {
     this.app.setting?.openTabById?.(this.manifest.id);
   };
 
-  private foldPropertiesInActiveLeaf = async () => {
-  // wait a tick so the view finishes mounting after openFile
-  await new Promise((r) => setTimeout(r, 0));
+private foldPropertiesInActiveLeaf = async () => {
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 25));
 
-  // TOGGLE unfold properties pane
-  this.app.commands.executeCommandById("editor:toggle-fold-properties");
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const props = view?.containerEl.querySelector(".metadata-container");
+    if (!props) continue;
+
+    const isCollapsed =
+      props.classList.contains("is-collapsed") ||
+      props.getAttribute("aria-expanded") === "false";
+
+    if (!isCollapsed) {
+      this.app.commands.executeCommandById("editor:toggle-fold-properties");
+    }
+    return;
+  }
 };
 
   // Temporary notification of public availability
