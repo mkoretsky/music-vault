@@ -290,7 +290,7 @@ private upsertFrontmatter = (content: string, newFrontmatter: string) => {
       if ((file.extension ?? "") !== "md") continue;
       try {
         const content = await this.app.vault.read(file);
-        if (content.includes(`track_id: "${song.id}"`)) {
+        if (new RegExp(`^\\s*track_id\\s*:\\s*["']?${song.id}["']?\\s*$`, "m").test(content)) { // less picky search
           const newFm = this.buildSongFrontmatter(song);
           const updated = this.upsertFrontmatter(content, newFm);
           if (updated !== content) await this.app.vault.modify(file, updated);
