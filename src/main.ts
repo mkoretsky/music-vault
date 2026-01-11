@@ -253,7 +253,7 @@ private foldPropertiesInActiveLeaf = async () => {
       if ((file.extension ?? "") !== "md") continue;
       try {
         const content = await this.app.vault.read(file);
-        if (content.includes(song.link)) {
+        if (content.includes(`track_id: "${song.id}"`)) {
 
           const leaf = this.app.workspace.getLeaf(false);
           await leaf.openFile(file);
