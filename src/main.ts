@@ -257,12 +257,9 @@ export default class ObsidianSpotifyPlugin extends Plugin {
     }
 
     // Build frontmatter and body
-    const artistsAll = (song.artists ?? []).map(a => a?.name).filter(Boolean) as string[];
-    const artistLinksAll = (song.artists ?? []).map(a => a?.link).filter(Boolean) as string[];
-
-    // optional split: treat first as "main", rest as "feat"
-    const artistsMain = artistsAll.length ? [artistsAll[0]] : [];
-    const artistsFeat = artistsAll.length > 1 ? artistsAll.slice(1) : [];
+    const artistsAll = (song.artists ?? []).map(a => a.name).filter(Boolean);
+    const artistLinksAll = (song.artists ?? []).map(a => a.link).filter(Boolean);
+    const artistIdsAll = (song.artists ?? []).map(a => a.id).filter(Boolean);
 
     const albumName = song.album?.name ?? "";
     const releaseDate = song.album?.release_date ?? "";
@@ -271,10 +268,17 @@ export default class ObsidianSpotifyPlugin extends Plugin {
       "---",
       `Song Name: "${song.name}"`,
       `Song link: "${song.link}"`,
+
+      `track_id: "${song.id}"`,
+      `isrc: "${song.isrc ?? ""}"`,
+      `duration_ms: ${song.duration_ms ?? '""'}`,
+      `explicit: ${song.explicit ?? '""'}`,
+      `popularity: ${song.popularity ?? '""'}`,
+
       `artists_all: [${artistsAll.map(n => JSON.stringify(n)).join(", ")}]`,
-      `artists_main: [${artistsMain.map(n => JSON.stringify(n)).join(", ")}]`,
-      `artists_feat: [${artistsFeat.map(n => JSON.stringify(n)).join(", ")}]`,
+      `artist_ids_all: [${artistIdsAll.map(id => JSON.stringify(id)).join(", ")}]`,
       `artist_links_all: [${artistLinksAll.map(u => JSON.stringify(u)).join(", ")}]`,
+
       `Album name: "${albumName}"`,
       `Release date: "${releaseDate}"`,
       /*`Danceability: ${af?.danceability ?? ""}`,

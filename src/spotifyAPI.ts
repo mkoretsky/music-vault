@@ -115,11 +115,17 @@ export const refreshToken = async (
 
 /** Return type for a song fetched from Spotify */
 export type Song = {
-  //id: string;
+  id: string;                 // track id
   name: string;
   link: string;
 
+  isrc?: string;              // from external_ids.isrc
+  duration_ms?: number;
+  explicit?: boolean;
+  popularity?: number;
+
   artists?: {
+    id: string;               // artist id
     name: string;
     link?: string;
   }[];
@@ -181,11 +187,18 @@ export const fetchCurrentSong = async (
       if (!item || item.type !== "track") return undefined;
 
       return {
-        //id: item.id,
+        id: item.id ?? "",
         name: item.name ?? "",
         link: item.external_urls?.spotify ?? item.uri ?? "",
+        
+        isrc: item.external_ids?.isrc,
+        duration_ms: item.duration_ms,
+        explicit: item.explicit,
+        popularity: item.popularity,
+
         artists: (item.artists ?? []).map((a: any) => ({
-          name: a.name,
+          id: a.id ?? "",
+          name: a.name ?? "",
           link: a.external_urls?.spotify,
         })),
         album: item.album
