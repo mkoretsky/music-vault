@@ -224,8 +224,8 @@ private foldPropertiesInActiveLeaf = async () => {
 
   return [
     "---",
-    `Song Name: "${song.name}"`,
-    `Song link: "${song.link}"`,
+    `Song Name: "${this.yamlDq(song.name)}"`,
+    `Song link: "${this.yamlDq(song.link)}"`,
     `track_id: "${song.id}"`,
     `isrc: "${song.isrc ?? ""}"`,
     `duration_ms: ${song.duration_ms ?? '""'}`,
@@ -234,7 +234,7 @@ private foldPropertiesInActiveLeaf = async () => {
     `artists_all: [${artistsAll.map(n => JSON.stringify(n)).join(", ")}]`,
     `artist_ids_all: [${artistIdsAll.map(id => JSON.stringify(id)).join(", ")}]`,
     `artist_links_all: [${artistLinksAll.map(u => JSON.stringify(u)).join(", ")}]`,
-    `Album name: "${albumName}"`,
+    `Album name: "${this.yamlDq(albumName)}"`,
     `Release date: "${releaseDate}"`,
     "---",
   ].join("\n");
