@@ -248,6 +248,19 @@ private upsertFrontmatter = (content: string, newFrontmatter: string) => {
   return `${newFrontmatter}${sep}${rest}`;
 };
 
+private yamlDq = (s: unknown) => {
+  const v = String(s ?? "");
+  // Escape backslash first, then double quotes, then normalize newlines/tabs
+  return v
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\r\n/g, "\\n")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\n")
+    .replace(/\t/g, "\\t");
+};
+
+
 
   // Create or open a song note for the current playing song
   createSongNote = async () => {
@@ -317,8 +330,8 @@ private upsertFrontmatter = (content: string, newFrontmatter: string) => {
 
     const frontmatter = [
       "---",
-      `Song Name: "${song.name}"`,
-      `Song link: "${song.link}"`,
+      `Song Name: "${this.yamlDq(song.name)}"`,
+      `Song link: "${this.yamlDq(song.link)}"`,
 
       `track_id: "${song.id}"`,
       `isrc: "${song.isrc ?? ""}"`,
@@ -330,7 +343,7 @@ private upsertFrontmatter = (content: string, newFrontmatter: string) => {
       `artist_ids_all: [${artistIdsAll.map(id => JSON.stringify(id)).join(", ")}]`,
       `artist_links_all: [${artistLinksAll.map(u => JSON.stringify(u)).join(", ")}]`,
 
-      `Album name: "${albumName}"`,
+      `Album name: "${this.yamlDq(albumName)}"`,
       `Release date: "${releaseDate}"`,
       /*`Danceability: ${af?.danceability ?? ""}`,
       `Energy: ${af?.energy ?? ""}`,
