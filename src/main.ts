@@ -8,6 +8,7 @@ import {
   TokenResponse,
   fetchToken,
   fetchCurrentSong,
+  fetchSongById,
   redirectUri,
   buildAuthUrlAndVerifier,
   Song,
@@ -260,12 +261,96 @@ private yamlDq = (s: unknown) => {
     .replace(/\t/g, "\\t");
 };
 
+// Extract track ID from Spotify URL (e.g., https://open.spotify.com/track/abc123?si=...)
+private extractTrackId = (url: string): string | undefined => {
+  const match = url.match(/spotify\.com\/track\/([a-zA-Z0-9]+)/);
+  return match?.[1];
+};
 
+// Shared helper: find existing song note or create new one, then open it
+private findOrCreateAndOpenSongNote = async (song: Song, splitRight: boolean) => {
+  const folder = (this.settings.songsFolder ?? "").replace(/^\/+|\/+$/g, "").trim();
+  await this.ensureFolderExists(folder);
+
+  // Search for existing note by track_id
+  const files = folder
+    ? this.app.vault.getFiles().filter((f) => f.path.startsWith(`${folder}/`))
+    : this.app.vault.getFiles();
+
+  for (const file of files) {
+    if ((file.extension ?? "") !== "md") continue;
+    try {
+      const content = await this.app.vault.read(file);
+      if (new RegExp(`^\\s*track_id\\s*:\\s*["']?${song.id}["']?\\s*$`, "m").test(content)) {
+        const newFm = this.buildSongFrontmatter(song);
+        const updated = this.upsertFrontmatter(content, newFm);
+        if (updated !== content) await this.app.vault.modify(file, updated);
+
+        const leaf = splitRight
+          ? this.app.workspace.getLeaf("split", "vertical")
+          : this.app.workspace.getLeaf(false);
+        await leaf.openFile(file);
+        await this.foldPropertiesInActiveLeaf();
+        new Notice("✅ Opened existing song note (updated)");
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // No existing note found - create new one
+  const artistsAll = (song.artists ?? []).map(a => a.name).filter(Boolean);
+  const artistLinksAll = (song.artists ?? []).map(a => a.link).filter(Boolean);
+  const artistIdsAll = (song.artists ?? []).map(a => a.id).filter(Boolean);
+  const albumName = song.album?.name ?? "";
+  const releaseDate = song.album?.release_date ?? "";
+
+  const frontmatter = [
+    "---",
+    `Song Name: "${this.yamlDq(song.name)}"`,
+    `Song link: "${this.yamlDq(song.link)}"`,
+    `track_id: "${song.id}"`,
+    `isrc: "${song.isrc ?? ""}"`,
+    `duration_ms: ${song.duration_ms ?? '""'}`,
+    `explicit: ${song.explicit ?? '""'}`,
+    `popularity: ${song.popularity ?? '""'}`,
+    `artists_all: [${artistsAll.map(n => JSON.stringify(n)).join(", ")}]`,
+    `artist_ids_all: [${artistIdsAll.map(id => JSON.stringify(id)).join(", ")}]`,
+    `artist_links_all: [${artistLinksAll.map(u => JSON.stringify(u)).join(", ")}]`,
+    `Album name: "${this.yamlDq(albumName)}"`,
+    `Release date: "${releaseDate}"`,
+    "---",
+  ].join("\n");
+
+  const body = ``;
+  const baseName = this.sanitizeFileName(song.name || "Untitled Song");
+  const prefix = folder ? `${folder}/` : "";
+  let filePath = `${prefix}${baseName}.md`;
+
+  let ix = 1;
+  while (this.app.vault.getAbstractFileByPath(filePath)) {
+    ix += 1;
+    filePath = `${prefix}${baseName} - ${ix}.md`;
+  }
+
+  try {
+    const file = await this.app.vault.create(filePath, `${frontmatter}\n\n${body}`);
+    const leaf = splitRight
+      ? this.app.workspace.getLeaf("split", "vertical")
+      : this.app.workspace.getLeaf(false);
+    await leaf.openFile(file);
+    await this.foldPropertiesInActiveLeaf();
+    new Notice("✅ Created song note");
+  } catch (e) {
+    console.error("Error creating song note:", e);
+    new Notice("❌ Failed to create song note");
+  }
+};
 
   // Create or open a song note for the current playing song
   createSongNote = async () => {
     const token = await getToken();
-
     if (token === undefined) {
       new Notice("🎵 Connect Spotify in settings first");
       this.openSettingsPage();
@@ -273,114 +358,51 @@ private yamlDq = (s: unknown) => {
     }
 
     const song = await fetchCurrentSong(token.access_token);
-
     if (song === undefined) {
       new Notice("❌ No song playing");
       return;
     }
 
-    const folder = (this.settings.songsFolder ?? "").replace(/^\/+|\/+$/g, "").trim();
-    await this.ensureFolderExists(folder);
+    await this.findOrCreateAndOpenSongNote(song, false);
+  };
 
-
-    /*console.log("[SongLinks] song:", song);
-    if (!song.id) { new Notice("❌ song.id missing (check fetchCurrentSong mapping)"); return; }
-    let af;
-    try {
-      af = await fetchAudioFeatures(token.access_token, song.id);
-      console.log("[SongLinks] af:", af);
-    } catch (e) {
-      console.error("[SongLinks] fetchAudioFeatures crashed:", e);
-      new Notice("❌ audio-features fetch failed (check console)");
-      af = undefined;
-    }*/
-
-    // Search for an existing note containing the song URL
-    const files = folder
-      ? this.app.vault.getFiles().filter((f) => f.path.startsWith(`${folder}/`))
-      : this.app.vault.getFiles();
-    for (const file of files) {
-      if ((file.extension ?? "") !== "md") continue;
-      try {
-        const content = await this.app.vault.read(file);
-        if (new RegExp(`^\\s*track_id\\s*:\\s*["']?${song.id}["']?\\s*$`, "m").test(content)) { // less picky search
-          const newFm = this.buildSongFrontmatter(song);
-          const updated = this.upsertFrontmatter(content, newFm);
-          if (updated !== content) await this.app.vault.modify(file, updated);
-
-          const leaf = this.app.workspace.getLeaf(false);
-          await leaf.openFile(file);
-          await this.foldPropertiesInActiveLeaf();
-          new Notice("✅ Opened existing song note (updated)");
-          return;
-        }
-      } catch (e) {
-        // ignore read errors for individual files
-        console.error(e);
-      }
+  // Open song note from the "Song link" property of the active note
+  openSongNoteFromLink = async () => {
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new Notice("❌ No active note");
+      return;
     }
 
-    // Build frontmatter and body
-    const artistsAll = (song.artists ?? []).map(a => a.name).filter(Boolean);
-    const artistLinksAll = (song.artists ?? []).map(a => a.link).filter(Boolean);
-    const artistIdsAll = (song.artists ?? []).map(a => a.id).filter(Boolean);
-
-    const albumName = song.album?.name ?? "";
-    const releaseDate = song.album?.release_date ?? "";
-
-    const frontmatter = [
-      "---",
-      `Song Name: "${this.yamlDq(song.name)}"`,
-      `Song link: "${this.yamlDq(song.link)}"`,
-
-      `track_id: "${song.id}"`,
-      `isrc: "${song.isrc ?? ""}"`,
-      `duration_ms: ${song.duration_ms ?? '""'}`,
-      `explicit: ${song.explicit ?? '""'}`,
-      `popularity: ${song.popularity ?? '""'}`,
-
-      `artists_all: [${artistsAll.map(n => JSON.stringify(n)).join(", ")}]`,
-      `artist_ids_all: [${artistIdsAll.map(id => JSON.stringify(id)).join(", ")}]`,
-      `artist_links_all: [${artistLinksAll.map(u => JSON.stringify(u)).join(", ")}]`,
-
-      `Album name: "${this.yamlDq(albumName)}"`,
-      `Release date: "${releaseDate}"`,
-      /*`Danceability: ${af?.danceability ?? ""}`,
-      `Energy: ${af?.energy ?? ""}`,
-      `Loudness dB: ${af?.loudness ?? ""}`,
-      `Speechiness: ${af?.speechiness ?? ""}`,
-      `Acousticness: ${af?.acousticness ?? ""}`,
-      `Instrumentalness: ${af?.instrumentalness ?? ""}`,
-      `Liveness: ${af?.liveness ?? ""}`,
-      `Valence: ${af?.valence ?? ""}`,
-      `Tempo BPM: ${af?.tempo ?? ""}`,*/
-      "---",
-    ].join("\n");
-
-    const body = [
-      ``,
-    ].join("\n\n");
-
-    const baseName = this.sanitizeFileName(song.name || "Untitled Song");
-    const prefix = folder ? `${folder}/` : "";
-    let filePath = `${prefix}${baseName}.md`;
-
-    let ix = 1;
-    while (this.app.vault.getAbstractFileByPath(filePath)) {
-      ix += 1;
-      filePath = `${prefix}${baseName} - ${ix}.md`;
+    // Read frontmatter to get Song link
+    const content = await this.app.vault.read(activeFile);
+    const linkMatch = content.match(/^["']?Song link["']?:\s*["']([^"']+)["']\s*$/m);
+    if (!linkMatch) {
+      new Notice("❌ No 'Song link' property found");
+      return;
     }
 
-    try {
-      const file = await this.app.vault.create(filePath, `${frontmatter}\n\n${body}`);
-      const leaf = this.app.workspace.getLeaf(false);
-      await leaf.openFile(file);
-      await this.foldPropertiesInActiveLeaf();
-      new Notice("✅ Created song note");
-    } catch (e) {
-      console.error("Error creating song note:", e);
-      new Notice("❌ Failed to create song note");
+    const songLink = linkMatch[1].trim();
+    const trackId = this.extractTrackId(songLink);
+    if (!trackId) {
+      new Notice("❌ Invalid Spotify track URL");
+      return;
     }
+
+    const token = await getToken();
+    if (token === undefined) {
+      new Notice("🎵 Connect Spotify in settings first");
+      this.openSettingsPage();
+      return;
+    }
+
+    const song = await fetchSongById(token.access_token, trackId);
+    if (song === undefined) {
+      new Notice("❌ Could not fetch song from Spotify");
+      return;
+    }
+
+    await this.findOrCreateAndOpenSongNote(song, true);
   };
 
   /**
@@ -401,6 +423,13 @@ private yamlDq = (s: unknown) => {
       id: "create-song-note",
       name: "Create/open song note",
       callback: this.createSongNote,
+    });
+
+    // New command to open song note from the active note's Song link property
+    this.addCommand({
+      id: "open-song-note-from-link",
+      name: "Open song note from link",
+      callback: this.openSongNoteFromLink,
     });
 
     // This adds a settings tab so the user can configure various aspects of the plugin

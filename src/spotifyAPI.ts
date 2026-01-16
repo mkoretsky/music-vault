@@ -167,14 +167,33 @@ export const fetchAudioFeatures = async (
  * Fetch the current playing song from spotify. Undefined if nothing playing or an error occurred.
  * `token` is expected to be a valid, non-expired, access token.
  */
+const parseSongFromTrack = (item: any): Song | undefined => {
+  if (!item) return undefined;
+  return {
+    id: item.id ?? "",
+    name: item.name ?? "",
+    link: item.external_urls?.spotify ?? item.uri ?? "",
+    isrc: item.external_ids?.isrc,
+    duration_ms: item.duration_ms,
+    explicit: item.explicit,
+    popularity: item.popularity,
+    artists: (item.artists ?? []).map((a: any) => ({
+      id: a.id ?? "",
+      name: a.name ?? "",
+      link: a.external_urls?.spotify,
+    })),
+    album: item.album
+      ? { name: item.album.name, release_date: item.album.release_date }
+      : undefined,
+  };
+};
+
 export const fetchCurrentSong = async (
   token: string
 ): Promise<Song | undefined> => {
   const params: RequestUrlParam = {
     url: "https://api.spotify.com/v1/me/player/currently-playing",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
   };
   const res = await requestUrl(params);
 
@@ -182,35 +201,32 @@ export const fetchCurrentSong = async (
     try {
       const obj = res.json;
       if (!obj?.is_playing) return undefined;
-
       const item = obj.item;
       if (!item || item.type !== "track") return undefined;
-
-      return {
-        id: item.id ?? "",
-        name: item.name ?? "",
-        link: item.external_urls?.spotify ?? item.uri ?? "",
-        
-        isrc: item.external_ids?.isrc,
-        duration_ms: item.duration_ms,
-        explicit: item.explicit,
-        popularity: item.popularity,
-
-        artists: (item.artists ?? []).map((a: any) => ({
-          id: a.id ?? "",
-          name: a.name ?? "",
-          link: a.external_urls?.spotify,
-        })),
-        album: item.album
-          ? {
-              name: item.album.name,
-              release_date: item.album.release_date,
-            }
-          : undefined,
-      };
-
+      return parseSongFromTrack(item);
     } catch (e: unknown) {
       console.error("Failed to parse response json in fetchCurrentSong: ", e);
+      return undefined;
+    }
+  }
+  return undefined;
+};
+
+export const fetchSongById = async (
+  token: string,
+  trackId: string
+): Promise<Song | undefined> => {
+  const params: RequestUrlParam = {
+    url: `https://api.spotify.com/v1/tracks/${trackId}`,
+    headers: { Authorization: `Bearer ${token}` },
+  };
+  const res = await requestUrl(params);
+
+  if (ok(res.status)) {
+    try {
+      return parseSongFromTrack(res.json);
+    } catch (e: unknown) {
+      console.error("Failed to parse response json in fetchSongById: ", e);
       return undefined;
     }
   }
