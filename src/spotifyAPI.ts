@@ -134,6 +134,8 @@ export type Song = {
     name: string;
     release_date?: string;
   };
+
+  genres?: string[];          // Combined deduplicated genres from all artists
 };
 
 /*export type AudioFeatures = {
@@ -261,4 +263,45 @@ export const fetchProfile = async (
     return res.json;
   }
   return undefined;
+};
+
+/**
+ * Fetch genres for multiple artists from Spotify.
+ * Batches up to 50 artist IDs per request (Spotify API limit).
+ * @returns Map of artistId -> genres[]
+ */
+export const fetchArtistGenres = async (
+  token: string,
+  artistIds: string[]
+): Promise<Map<string, string[]>> => {
+  const result = new Map<string, string[]>();
+  if (!artistIds.length) return result;
+
+  // Deduplicate and filter empty IDs
+  const uniqueIds = [...new Set(artistIds.filter(Boolean))];
+
+  // Batch into chunks of 50 (Spotify API limit)
+  const batchSize = 50;
+  for (let i = 0; i < uniqueIds.length; i += batchSize) {
+    const batch = uniqueIds.slice(i, i + batchSize);
+    const params: RequestUrlParam = {
+      url: `https://api.spotify.com/v1/artists?ids=${batch.join(",")}`,
+      headers: { Authorization: `Bearer ${token}` },
+    };
+
+    try {
+      const res = await requestUrl(params);
+      if (ok(res.status) && res.json?.artists) {
+        for (const artist of res.json.artists) {
+          if (artist?.id && Array.isArray(artist.genres)) {
+            result.set(artist.id, artist.genres);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching artist genres:", e);
+    }
+  }
+
+  return result;
 };
