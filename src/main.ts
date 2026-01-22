@@ -9,6 +9,7 @@ import {
   fetchToken,
   fetchCurrentSong,
   fetchSongById,
+  fetchArtistGenres,
   redirectUri,
   buildAuthUrlAndVerifier,
   Song,
@@ -222,6 +223,7 @@ private foldPropertiesInActiveLeaf = async () => {
 
   const albumName = song.album?.name ?? "";
   const releaseDate = song.album?.release_date ?? "";
+  const genres = song.genres ?? [];
 
   return [
     "---",
@@ -235,6 +237,7 @@ private foldPropertiesInActiveLeaf = async () => {
     `artists_all: [${artistsAll.map(n => JSON.stringify(n)).join(", ")}]`,
     `artist_ids_all: [${artistIdsAll.map(id => JSON.stringify(id)).join(", ")}]`,
     `artist_links_all: [${artistLinksAll.map(u => JSON.stringify(u)).join(", ")}]`,
+    `genres: [${genres.map(g => JSON.stringify(g)).join(", ")}]`,
     `Album name: "${this.yamlDq(albumName)}"`,
     `Release date: "${releaseDate}"`,
     "---",
@@ -259,6 +262,24 @@ private yamlDq = (s: unknown) => {
     .replace(/\n/g, "\\n")
     .replace(/\r/g, "\\n")
     .replace(/\t/g, "\\t");
+};
+
+private enrichSongWithGenres = async (song: Song, token: string): Promise<Song> => {
+  const artistIds = (song.artists ?? []).map(a => a.id).filter(Boolean);
+  if (!artistIds.length) return song;
+
+  const genreMap = await fetchArtistGenres(token, artistIds);
+
+  // Collect all genres from all artists, deduplicated
+  const allGenres: string[] = [];
+  for (const artistId of artistIds) {
+    const genres = genreMap.get(artistId) ?? [];
+    for (const g of genres) {
+      if (!allGenres.includes(g)) allGenres.push(g);
+    }
+  }
+
+  return { ...song, genres: allGenres };
 };
 
 // Extract track ID from Spotify URL (e.g., https://open.spotify.com/track/abc123?si=...)
@@ -300,29 +321,7 @@ private findOrCreateAndOpenSongNote = async (song: Song, splitRight: boolean) =>
   }
 
   // No existing note found - create new one
-  const artistsAll = (song.artists ?? []).map(a => a.name).filter(Boolean);
-  const artistLinksAll = (song.artists ?? []).map(a => a.link).filter(Boolean);
-  const artistIdsAll = (song.artists ?? []).map(a => a.id).filter(Boolean);
-  const albumName = song.album?.name ?? "";
-  const releaseDate = song.album?.release_date ?? "";
-
-  const frontmatter = [
-    "---",
-    `Song Name: "${this.yamlDq(song.name)}"`,
-    `Song link: "${this.yamlDq(song.link)}"`,
-    `track_id: "${song.id}"`,
-    `isrc: "${song.isrc ?? ""}"`,
-    `duration_ms: ${song.duration_ms ?? '""'}`,
-    `explicit: ${song.explicit ?? '""'}`,
-    `popularity: ${song.popularity ?? '""'}`,
-    `artists_all: [${artistsAll.map(n => JSON.stringify(n)).join(", ")}]`,
-    `artist_ids_all: [${artistIdsAll.map(id => JSON.stringify(id)).join(", ")}]`,
-    `artist_links_all: [${artistLinksAll.map(u => JSON.stringify(u)).join(", ")}]`,
-    `Album name: "${this.yamlDq(albumName)}"`,
-    `Release date: "${releaseDate}"`,
-    "---",
-  ].join("\n");
-
+  const frontmatter = this.buildSongFrontmatter(song);
   const body = ``;
   const baseName = this.sanitizeFileName(song.name || "Untitled Song");
   const prefix = folder ? `${folder}/` : "";
@@ -363,7 +362,8 @@ private findOrCreateAndOpenSongNote = async (song: Song, splitRight: boolean) =>
       return;
     }
 
-    await this.findOrCreateAndOpenSongNote(song, false);
+    const enrichedSong = await this.enrichSongWithGenres(song, token.access_token);
+    await this.findOrCreateAndOpenSongNote(enrichedSong, false);
   };
 
   // Open song note from the "Song link" property of the active note
@@ -402,7 +402,78 @@ private findOrCreateAndOpenSongNote = async (song: Song, splitRight: boolean) =>
       return;
     }
 
-    await this.findOrCreateAndOpenSongNote(song, true);
+    const enrichedSong = await this.enrichSongWithGenres(song, token.access_token);
+    await this.findOrCreateAndOpenSongNote(enrichedSong, true);
+  };
+
+  // Refresh all song notes in the songs folder
+  refreshAllSongNotes = async () => {
+    const token = await getToken();
+    if (token === undefined) {
+      new Notice("🎵 Connect Spotify in settings first");
+      this.openSettingsPage();
+      return;
+    }
+
+    const folder = (this.settings.songsFolder ?? "").replace(/^\/+|\/+$/g, "").trim();
+    const files = folder
+      ? this.app.vault.getFiles().filter((f) => f.path.startsWith(`${folder}/`))
+      : this.app.vault.getFiles();
+
+    // Collect files with track_id
+    const songFiles: { file: typeof files[0]; trackId: string; content: string }[] = [];
+    for (const file of files) {
+      if ((file.extension ?? "") !== "md") continue;
+      try {
+        const content = await this.app.vault.read(file);
+        const match = content.match(/^\s*track_id\s*:\s*["']?([a-zA-Z0-9]+)["']?\s*$/m);
+        if (match) {
+          songFiles.push({ file, trackId: match[1], content });
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    if (songFiles.length === 0) {
+      new Notice("No song notes found to refresh");
+      return;
+    }
+
+    new Notice(`Refreshing ${songFiles.length} song notes...`);
+
+    let updated = 0;
+    let failed = 0;
+
+    for (let i = 0; i < songFiles.length; i++) {
+      const { file, trackId, content } = songFiles[i];
+      try {
+        const song = await fetchSongById(token.access_token, trackId);
+        if (!song) {
+          failed++;
+          continue;
+        }
+
+        const enrichedSong = await this.enrichSongWithGenres(song, token.access_token);
+        const newFm = this.buildSongFrontmatter(enrichedSong);
+        const updatedContent = this.upsertFrontmatter(content, newFm);
+
+        if (updatedContent !== content) {
+          await this.app.vault.modify(file, updatedContent);
+          updated++;
+        }
+      } catch (e) {
+        console.error(`Failed to refresh ${file.path}:`, e);
+        failed++;
+      }
+
+      // Progress notice every 10 files
+      if ((i + 1) % 10 === 0) {
+        new Notice(`Progress: ${i + 1}/${songFiles.length} notes processed`);
+      }
+    }
+
+    new Notice(`✅ Refresh complete: ${updated} updated, ${failed} failed`);
   };
 
   /**
@@ -430,6 +501,13 @@ private findOrCreateAndOpenSongNote = async (song: Song, splitRight: boolean) =>
       id: "open-song-note-from-link",
       name: "Open song note from link",
       callback: this.openSongNoteFromLink,
+    });
+
+    // Command to refresh all song notes with latest data from Spotify
+    this.addCommand({
+      id: "refresh-all-song-notes",
+      name: "Refresh all song notes",
+      callback: this.refreshAllSongNotes,
     });
 
     // This adds a settings tab so the user can configure various aspects of the plugin
