@@ -327,8 +327,14 @@ private findOrCreateAndOpenSongNote = async (song: Song, splitRight: boolean) =>
   const prefix = folder ? `${folder}/` : "";
   let filePath = `${prefix}${baseName}.md`;
 
+  // Case-insensitive check for macOS/Windows compatibility
+  const fileExistsCaseInsensitive = (path: string) => {
+    const lowerPath = path.toLowerCase();
+    return this.app.vault.getFiles().some(f => f.path.toLowerCase() === lowerPath);
+  };
+
   let ix = 1;
-  while (this.app.vault.getAbstractFileByPath(filePath)) {
+  while (fileExistsCaseInsensitive(filePath)) {
     ix += 1;
     filePath = `${prefix}${baseName} - ${ix}.md`;
   }
